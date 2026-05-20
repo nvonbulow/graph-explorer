@@ -34,7 +34,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel,
       connection: {
-        url,
+        graphDbUrl: url,
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -66,7 +66,7 @@ describe("useImportConnectionFile", () => {
       c => c.id !== state.activeConfig.id,
     );
     expect(importedConfig?.displayLabel).toBe(displayLabel);
-    expect(importedConfig?.connection?.url).toBe(url);
+    expect(importedConfig?.connection?.graphDbUrl).toBe(url);
     expect(importedConfig?.connection?.queryEngine).toBe("gremlin");
 
     const importedSchema = Array.from(schemas.values()).find(
@@ -119,7 +119,7 @@ describe("useImportConnectionFile", () => {
       id: state.activeConfig.id,
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -156,7 +156,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "sparql" as const,
       },
       schema: {
@@ -206,7 +206,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -248,7 +248,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -287,7 +287,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel: "Production Database",
       connection: {
-        url: "https://neptune.example.com:8182",
+        graphDbUrl: "https://neptune.example.com:8182",
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -357,7 +357,7 @@ describe("useImportConnectionFile", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -437,7 +437,7 @@ describe("backward compatibility: legacy __matches in exported files", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "sparql" as const,
       },
       schema: {

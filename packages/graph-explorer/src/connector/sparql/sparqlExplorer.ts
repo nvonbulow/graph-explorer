@@ -18,6 +18,7 @@ import type {
 } from "./types";
 
 import { fetchDatabaseRequest } from "../fetchDatabaseRequest";
+import { apiUrl } from "../utils/apiUrl";
 import { edgeDetails } from "./edgeDetails";
 import fetchEdgeConnections from "./fetchEdgeConnections";
 import fetchNeighbors from "./fetchNeighbors";
@@ -35,26 +36,26 @@ function _sparqlFetch(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: ExplorerRequestOptions,
+  baseURI?: string,
 ) {
   return async (queryTemplate: string) => {
     logger.debug(queryTemplate);
     const body = `query=${encodeURIComponent(queryTemplate)}`;
     const queryId = options?.queryId;
-    const headers: Record<string, string> =
-      queryId && connection.proxyConnection === true
-        ? {
-            accept: "application/sparql-results+json",
-            "Content-Type": "application/x-www-form-urlencoded",
-            queryId: queryId,
-          }
-        : {
-            accept: "application/sparql-results+json",
-            "Content-Type": "application/x-www-form-urlencoded",
-          };
+    const headers: Record<string, string> = queryId
+      ? {
+          accept: "application/sparql-results+json",
+          "Content-Type": "application/x-www-form-urlencoded",
+          queryId: queryId,
+        }
+      : {
+          accept: "application/sparql-results+json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        };
     return fetchDatabaseRequest(
       connection,
       featureFlags,
-      `${connection.url}/sparql`,
+      apiUrl("sparql", baseURI),
       {
         method: "POST",
         headers,
@@ -69,12 +70,13 @@ async function fetchSummary(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: RequestInit,
+  baseURI?: string,
 ) {
   try {
     const response = await fetchDatabaseRequest(
       connection,
       featureFlags,
-      `${connection.url}/rdf/statistics/summary?mode=detailed`,
+      apiUrl("rdf/statistics/summary?mode=detailed", baseURI),
       {
         method: "GET",
         ...options,
@@ -93,15 +95,21 @@ export function createSparqlExplorer(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   blankNodes: BlankNodesMap,
+  baseURI?: string,
 ): Explorer {
   const remoteLogger = createLoggerFromConnection(connection);
   return {
     connection: connection,
     async fetchSchema(options) {
       remoteLogger.info("[SPARQL Explorer] Fetching schema...");
-      const summary = await fetchSummary(connection, featureFlags, options);
+      const summary = await fetchSummary(
+        connection,
+        featureFlags,
+        options,
+        baseURI,
+      );
       return fetchSchema(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         remoteLogger,
         summary,
       );
@@ -109,7 +117,7 @@ export function createSparqlExplorer(
     async fetchVertexCountsByType(req, options) {
       remoteLogger.info("[SPARQL Explorer] Fetching vertex counts by type...");
       return fetchClassCounts(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
@@ -132,7 +140,7 @@ export function createSparqlExplorer(
       }
 
       const response = await fetchNeighbors(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         request,
       );
       const vertices = replaceBlankNodeFromNeighbors(
@@ -145,7 +153,7 @@ export function createSparqlExplorer(
     async neighborCounts(req, options) {
       remoteLogger.info("[SPARQL Explorer] Fetching neighbor counts...");
       return neighborCounts(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         req,
         blankNodes,
       );
@@ -166,7 +174,7 @@ export function createSparqlExplorer(
       };
 
       const response = await keywordSearch(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         reqParams,
       );
       const vertices = replaceBlankNodeFromSearch(
@@ -180,7 +188,7 @@ export function createSparqlExplorer(
     async vertexDetails(req, options) {
       remoteLogger.info("[SPARQL Explorer] Fetching vertex details...");
       return await vertexDetails(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
@@ -190,14 +198,14 @@ export function createSparqlExplorer(
     async rawQuery(req, options) {
       remoteLogger.info("[SPARQL Explorer] Fetching raw query...");
       return await rawQuery(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async fetchEdgeConnections(req, options) {
       remoteLogger.info("[SPARQL Explorer] Fetching edge connections...");
       return fetchEdgeConnections(
-        _sparqlFetch(connection, featureFlags, options),
+        _sparqlFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },

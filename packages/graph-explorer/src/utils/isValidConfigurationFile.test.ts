@@ -11,7 +11,7 @@ describe("isValidConfigurationFile", () => {
       id: createNewConfigurationId(),
       displayLabel: createRandomName("Config"),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -28,7 +28,7 @@ describe("isValidConfigurationFile", () => {
   test("should return false when id is missing", () => {
     const config = {
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -60,7 +60,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
     };
@@ -68,7 +68,7 @@ describe("isValidConfigurationFile", () => {
     expect(isValidConfigurationFile(config)).toBe(false);
   });
 
-  test("should return false when connection.url is missing", () => {
+  test("should return false when connection.graphDbUrl is missing", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
@@ -89,7 +89,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
       },
       schema: {
         totalVertices: 0,
@@ -106,7 +106,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: "not-a-valid-url",
+        graphDbUrl: "not-a-valid-url",
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -124,7 +124,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: "ftp://example.com",
+        graphDbUrl: "ftp://example.com",
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -142,7 +142,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: "http://example.com",
+        graphDbUrl: "http://example.com",
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -160,7 +160,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: "https://example.com",
+        graphDbUrl: "https://example.com",
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -178,7 +178,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "invalid-engine",
       },
       schema: {
@@ -196,7 +196,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -214,7 +214,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "openCypher" as const,
       },
       schema: {
@@ -232,7 +232,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "sparql" as const,
       },
       schema: {
@@ -250,7 +250,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -273,7 +273,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -295,7 +295,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -318,7 +318,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -341,7 +341,7 @@ describe("isValidConfigurationFile", () => {
     const config = {
       id: createNewConfigurationId(),
       connection: {
-        url: createRandomUrlString(),
+        graphDbUrl: createRandomUrlString(),
         queryEngine: "gremlin" as const,
       },
       schema: {
@@ -364,7 +364,7 @@ describe("isValidConfigurationFile", () => {
       id: createNewConfigurationId(),
       displayLabel: "Production Database",
       connection: {
-        url: "https://neptune.example.com:8182",
+        graphDbUrl: "https://neptune.example.com:8182",
         queryEngine: "gremlin" as const,
       },
       schema: {

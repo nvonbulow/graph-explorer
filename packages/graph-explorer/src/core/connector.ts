@@ -73,23 +73,17 @@ export const loggerSelector = atom(get =>
   createLoggerFromConnection(get(activeConnectionAtom)),
 );
 
-/** Creates a logger instance that will be remote if the connection is using the
- * proxy server. Otherwise it will be a client only logger. */
+/** Creates a logger instance that sends logs to the server via relative URL. */
 export function createLoggerFromConnection(
   connection: NormalizedConnection | null,
+  baseURI?: string,
 ): LoggerConnector {
-  // Check for a url and that we are using the proxy server
-  if (!connection || !connection.url || connection.proxyConnection !== true) {
+  if (!connection) {
     logger.debug(
-      "Connection did not contain enough information to create a remote logger, so using a client logger instead",
-      connection,
+      "No connection provided, using a client logger instead",
     );
     return new ClientLoggerConnector();
   }
 
-  logger.debug(
-    "Creating a remote server logger using proxy server URL",
-    connection.url,
-  );
-  return new ServerLoggerConnector(connection.url);
+  return new ServerLoggerConnector(baseURI);
 }

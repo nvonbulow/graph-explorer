@@ -56,7 +56,7 @@ describe("saveConfigurationToFile", () => {
     const config: ConfigurationContextProps = {
       ...createRandomRawConfiguration(),
       connection: {
-        url: "https://example.com",
+        graphDbUrl: "https://example.com",
       },
       totalVertices: 0,
       vertexTypes: [],
@@ -71,14 +71,14 @@ describe("saveConfigurationToFile", () => {
     const parsed = JSON.parse(text);
 
     expect(parsed.connection.queryEngine).toBe("gremlin");
-    expect(parsed.connection.url).toBe("https://example.com");
+    expect(parsed.connection.graphDbUrl).toBe("https://example.com");
   });
 
   it("should preserve existing queryEngine", async () => {
     const config: ConfigurationContextProps = {
       ...createRandomRawConfiguration(),
       connection: {
-        url: "https://example.com",
+        graphDbUrl: "https://example.com",
         queryEngine: "sparql",
       },
       totalVertices: 0,

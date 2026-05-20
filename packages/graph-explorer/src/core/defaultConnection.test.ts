@@ -13,8 +13,85 @@ import {
 
 import {
   DefaultConnectionDataSchema,
+  fetchDefaultConnection,
   mapToConnection,
 } from "./defaultConnection";
+
+describe("fetchDefaultConnection", () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("should fetch from a single relative URL", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          GRAPH_EXP_CONNECTION_URL: "https://db.example.com:8182",
+          GRAPH_EXP_GRAPH_TYPE: "gremlin",
+          GRAPH_EXP_IAM: true,
+          GRAPH_EXP_AWS_REGION: "us-east-1",
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await fetchDefaultConnection(
+      "http://localhost/explorer/index.html",
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        href: "http://localhost/defaultConnection",
+      }),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].connection?.graphDbUrl).toBe(
+      "https://db.example.com:8182",
+    );
+  });
+
+  test("should not fall back to sagemaker path", async () => {
+    mockFetch.mockResolvedValue(new Response("", { status: 404 }));
+
+    const result = await fetchDefaultConnection(
+      "http://localhost/explorer/index.html",
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(0);
+  });
+
+  test("should return all query engines when none specified", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          GRAPH_EXP_CONNECTION_URL: "https://db.example.com:8182",
+          GRAPH_EXP_IAM: false,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await fetchDefaultConnection(
+      "http://localhost/explorer/index.html",
+    );
+
+    expect(result).toHaveLength(3);
+    expect(result.map(c => c.connection?.queryEngine)).toEqual([
+      "gremlin",
+      "openCypher",
+      "sparql",
+    ]);
+  });
+});
 
 describe("mapToConnection", () => {
   test("should map default connection data to connection config", () => {
@@ -25,8 +102,6 @@ describe("mapToConnection", () => {
       displayLabel: "Default Connection",
       connection: {
         graphDbUrl: defaultConnectionData.GRAPH_EXP_CONNECTION_URL,
-        url: defaultConnectionData.GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT,
-        proxyConnection: defaultConnectionData.GRAPH_EXP_USING_PROXY_SERVER,
         queryEngine: defaultConnectionData.GRAPH_EXP_GRAPH_TYPE,
         awsAuthEnabled: defaultConnectionData.GRAPH_EXP_IAM,
         awsRegion: defaultConnectionData.GRAPH_EXP_AWS_REGION,

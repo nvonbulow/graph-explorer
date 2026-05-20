@@ -8,6 +8,7 @@ import type { Explorer, ExplorerRequestOptions } from "../useGEFetchTypes";
 import type { GraphSummary } from "./types";
 
 import { fetchDatabaseRequest } from "../fetchDatabaseRequest";
+import { apiUrl } from "../utils/apiUrl";
 import { edgeDetails } from "./edgeDetails";
 import fetchEdgeConnections from "./fetchEdgeConnections";
 import fetchNeighbors from "./fetchNeighbors";
@@ -22,13 +23,14 @@ function _openCypherFetch(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: ExplorerRequestOptions,
+  baseURI?: string,
 ) {
   return async (queryTemplate: string) => {
     logger.debug(queryTemplate);
     return fetchDatabaseRequest(
       connection,
       featureFlags,
-      `${connection.url}/openCypher`,
+      apiUrl("openCypher", baseURI),
       {
         method: "POST",
         headers: {
@@ -44,6 +46,7 @@ function _openCypherFetch(
 export function createOpenCypherExplorer(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
+  baseURI?: string,
 ): Explorer {
   const remoteLogger = createLoggerFromConnection(connection);
   const serviceType = connection.serviceType || DEFAULT_SERVICE_TYPE;
@@ -56,9 +59,10 @@ export function createOpenCypherExplorer(
         connection,
         featureFlags,
         options,
+        baseURI,
       );
       return fetchSchema(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         remoteLogger,
         summary,
       );
@@ -68,53 +72,56 @@ export function createOpenCypherExplorer(
         "[openCypher Explorer] Fetching vertex counts by type...",
       );
       return fetchVertexTypeCounts(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async fetchNeighbors(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching neighbors...");
       return fetchNeighbors(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async neighborCounts(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching neighbors count...");
       return neighborCounts(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async keywordSearch(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching keyword search...");
       return keywordSearch(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async vertexDetails(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching vertex details...");
       return vertexDetails(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async edgeDetails(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching edge details...");
       return edgeDetails(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async rawQuery(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching raw query...");
-      return rawQuery(_openCypherFetch(connection, featureFlags, options), req);
+      return rawQuery(
+        _openCypherFetch(connection, featureFlags, options, baseURI),
+        req,
+      );
     },
     async fetchEdgeConnections(req, options) {
       remoteLogger.info("[openCypher Explorer] Fetching edge connections...");
       return fetchEdgeConnections(
-        _openCypherFetch(connection, featureFlags, options),
+        _openCypherFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
@@ -126,12 +133,13 @@ async function fetchSummary(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: RequestInit,
+  baseURI?: string,
 ) {
   try {
     const endpoint =
       serviceType === DEFAULT_SERVICE_TYPE
-        ? `${connection.url}/pg/statistics/summary?mode=detailed`
-        : `${connection.url}/summary?mode=detailed`;
+        ? apiUrl("pg/statistics/summary?mode=detailed", baseURI)
+        : apiUrl("summary?mode=detailed", baseURI);
     const response = await fetchDatabaseRequest(
       connection,
       featureFlags,

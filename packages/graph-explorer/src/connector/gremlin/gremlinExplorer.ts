@@ -9,6 +9,7 @@ import type { Explorer, ExplorerRequestOptions } from "../useGEFetchTypes";
 import type { GraphSummary, GremlinFetch } from "./types";
 
 import { fetchDatabaseRequest } from "../fetchDatabaseRequest";
+import { apiUrl } from "../utils/apiUrl";
 import { edgeDetails } from "./edgeDetails";
 import fetchEdgeConnections from "./fetchEdgeConnections";
 import fetchNeighbors from "./fetchNeighbors";
@@ -23,6 +24,7 @@ function _gremlinFetch(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: ExplorerRequestOptions,
+  baseURI?: string,
 ): GremlinFetch {
   return async (queryTemplate: string) => {
     logger.debug(queryTemplate);
@@ -31,14 +33,14 @@ function _gremlinFetch(
       "Content-Type": "application/json",
       Accept: "application/vnd.gremlin-v3.0+json",
     };
-    if (options?.queryId && connection.proxyConnection === true) {
+    if (options?.queryId) {
       headers.queryId = options.queryId;
     }
 
     return fetchDatabaseRequest(
       connection,
       featureFlags,
-      `${connection.url}/gremlin`,
+      apiUrl("gremlin", baseURI),
       {
         method: "POST",
         headers,
@@ -53,12 +55,13 @@ async function fetchSummary(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
   options?: RequestInit,
+  baseURI?: string,
 ) {
   try {
     const response = await fetchDatabaseRequest(
       connection,
       featureFlags,
-      `${connection.url}/pg/statistics/summary?mode=detailed`,
+      apiUrl("pg/statistics/summary?mode=detailed", baseURI),
       {
         method: "GET",
         ...options,
@@ -76,15 +79,21 @@ async function fetchSummary(
 export function createGremlinExplorer(
   connection: NormalizedConnection,
   featureFlags: FeatureFlags,
+  baseURI?: string,
 ): Explorer {
   const remoteLogger = createLoggerFromConnection(connection);
   return {
     connection: connection,
     async fetchSchema(options) {
       remoteLogger.info("[Gremlin Explorer] Fetching schema...");
-      const summary = await fetchSummary(connection, featureFlags, options);
+      const summary = await fetchSummary(
+        connection,
+        featureFlags,
+        options,
+        baseURI,
+      );
       return fetchSchema(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         remoteLogger,
         summary,
       );
@@ -92,21 +101,21 @@ export function createGremlinExplorer(
     async fetchVertexCountsByType(req, options) {
       remoteLogger.info("[Gremlin Explorer] Fetching vertex counts by type...");
       return fetchVertexTypeCounts(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async fetchNeighbors(req, options) {
       remoteLogger.info("[Gremlin Explorer] Fetching neighbors...");
       return fetchNeighbors(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
     async neighborCounts(req, options) {
       remoteLogger.info("[Gremlin Explorer] Fetching neighbors count...");
       return neighborCounts(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
@@ -116,7 +125,7 @@ export function createGremlinExplorer(
 
       remoteLogger.info("[Gremlin Explorer] Fetching keyword search...");
       return keywordSearch(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },
@@ -126,7 +135,7 @@ export function createGremlinExplorer(
 
       remoteLogger.info("[Gremlin Explorer] Fetching vertex details...");
       const result = await vertexDetails(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
       return result;
@@ -137,7 +146,7 @@ export function createGremlinExplorer(
 
       remoteLogger.info("[Gremlin Explorer] Fetching edge details...");
       const result = await edgeDetails(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
       return result;
@@ -147,7 +156,7 @@ export function createGremlinExplorer(
       options.queryId = v4();
       remoteLogger.info("[Gremlin Explorer] Fetching raw query...");
       const result = await rawQuery(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
       return result;
@@ -155,7 +164,7 @@ export function createGremlinExplorer(
     async fetchEdgeConnections(req, options) {
       remoteLogger.info("[Gremlin Explorer] Fetching edge connections...");
       return fetchEdgeConnections(
-        _gremlinFetch(connection, featureFlags, options),
+        _gremlinFetch(connection, featureFlags, options, baseURI),
         req,
       );
     },

@@ -59,9 +59,9 @@ const isValidConfigurationFile = (
   }
 
   if (
-    !data.connection.url ||
+    !data.connection.graphDbUrl ||
     !data.connection.queryEngine ||
-    !isValidHttpUrl(data.connection.url) ||
+    !isValidHttpUrl(data.connection.graphDbUrl) ||
     !queryEngineOptions.includes(data.connection.queryEngine)
   ) {
     return false;
