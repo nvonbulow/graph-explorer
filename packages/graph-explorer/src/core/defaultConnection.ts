@@ -12,9 +12,7 @@ import type {
 
 export const DefaultConnectionDataSchema = z.object({
   // Connection info
-  GRAPH_EXP_USING_PROXY_SERVER: z.boolean().default(false),
   GRAPH_EXP_CONNECTION_URL: z.string().url().catch(""),
-  GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT: z.string().url().catch(""),
   GRAPH_EXP_GRAPH_TYPE: z.enum(queryEngineOptions).optional(),
   // IAM auth info
   GRAPH_EXP_IAM: z.boolean().default(false),

@@ -125,9 +125,7 @@ describe("DefaultConnectionDataSchema", () => {
     const data = {};
     const actual = DefaultConnectionDataSchema.parse(data);
     expect(actual).toEqual({
-      GRAPH_EXP_USING_PROXY_SERVER: false,
       GRAPH_EXP_CONNECTION_URL: "",
-      GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT: "",
       GRAPH_EXP_IAM: false,
       GRAPH_EXP_AWS_REGION: "",
       GRAPH_EXP_SERVICE_TYPE: "neptune-db",
@@ -138,7 +136,6 @@ describe("DefaultConnectionDataSchema", () => {
   test("should handle invalid service type", () => {
     const data: any = createRandomDefaultConnectionData();
     data.GRAPH_EXP_SERVICE_TYPE = createRandomName("serviceType");
-    // Make the enum less strict
     const actual = DefaultConnectionDataSchema.parse(data);
     expect(actual).toEqual({ ...data, GRAPH_EXP_SERVICE_TYPE: "neptune-db" });
   });
@@ -146,15 +143,10 @@ describe("DefaultConnectionDataSchema", () => {
   test("should handle invalid URLs", () => {
     const data: any = createRandomDefaultConnectionData();
     data.GRAPH_EXP_CONNECTION_URL = createRandomName("connectionURL");
-    data.GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT = createRandomName(
-      "publicOrProxyEndpoint",
-    );
-    // Make the enum less strict
     const actual = DefaultConnectionDataSchema.parse(data);
     expect(actual).toEqual({
       ...data,
       GRAPH_EXP_CONNECTION_URL: "",
-      GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT: "",
     });
   });
 
@@ -169,25 +161,11 @@ describe("DefaultConnectionDataSchema", () => {
       "http://blazegraph:9999/blazegraph/namespace/kb",
     );
   });
-
-  test("should preserve path in GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT", () => {
-    const data = {
-      ...createRandomDefaultConnectionData(),
-      GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT:
-        "http://localhost:8080/proxy/explorer",
-    };
-    const actual = DefaultConnectionDataSchema.parse(data);
-    expect(actual.GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT).toBe(
-      "http://localhost:8080/proxy/explorer",
-    );
-  });
 });
 
 function createRandomDefaultConnectionData() {
   return {
-    GRAPH_EXP_USING_PROXY_SERVER: createRandomBoolean(),
     GRAPH_EXP_CONNECTION_URL: createRandomUrlString(),
-    GRAPH_EXP_PUBLIC_OR_PROXY_ENDPOINT: createRandomUrlString(),
     GRAPH_EXP_GRAPH_TYPE: createRandomQueryEngine(),
     GRAPH_EXP_IAM: createRandomBoolean(),
     GRAPH_EXP_AWS_REGION: createRandomAwsRegion(),
