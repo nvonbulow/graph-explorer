@@ -22,6 +22,8 @@ The proxy does not store any user data — all preferences, connections, and que
 
 This architecture allows the app to work behind any reverse proxy (SageMaker, custom paths) without build-time configuration, since the client resolves API endpoints relative to its own location. The proxy can run inside a VPC alongside the database while the browser runs outside it.
 
+Because all requests flow through the proxy, the server must have network access to the target database. If the server is in a restricted network (e.g., a private subnet with no NAT gateway), it will not be able to reach databases outside that network even if the user's browser could reach them directly.
+
 ## Monorepo Structure
 
 The repository uses pnpm workspaces with two main packages:
