@@ -5,11 +5,12 @@ import { logger, NetworkError, ServerConnectionError } from "@/utils";
 import { fetchDatabaseRequest } from "./fetchDatabaseRequest";
 
 function createConnection(
-  overrides?: Partial<NormalizedConnection>,
+  overrides?: Partial<Extract<NormalizedConnection, { backend: "remote" }>>,
 ): NormalizedConnection {
   return {
     url: "http://localhost:8182",
     queryEngine: "gremlin",
+    backend: "remote",
     graphDbUrl: "",
     proxyConnection: false,
     awsAuthEnabled: false,

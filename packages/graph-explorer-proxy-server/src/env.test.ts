@@ -10,6 +10,7 @@ describe("parseEnvironmentValues", () => {
     expect(result.PROXY_SERVER_HTTP_PORT).toBe(80);
     expect(result.LOG_LEVEL).toBe("debug");
     expect(result.LOG_STYLE).toBe("default");
+    expect(result.LADYBUG_DATABASES).toBeUndefined();
   });
 
   it("parses provided values", () => {
@@ -64,6 +65,24 @@ describe("parseEnvironmentValues", () => {
     expect(result.PROXY_SERVER_HTTPS_PORT).toBe(3443);
   });
 
+  it("parses LADYBUG_DATABASES JSON", () => {
+    const result = parseEnvironmentValues({
+      LADYBUG_DATABASES:
+        '{"analytics":"/data/analytics.lbug","sample":"./test"}',
+    });
+
+    expect(result.LADYBUG_DATABASES).toStrictEqual({
+      analytics: "/data/analytics.lbug",
+      sample: "./test",
+    });
+  });
+
+  it("treats empty LADYBUG_DATABASES as unset", () => {
+    const result = parseEnvironmentValues({ LADYBUG_DATABASES: "" });
+
+    expect(result.LADYBUG_DATABASES).toBeUndefined();
+  });
+
   describe("validation failures", () => {
     beforeEach(() => {
       vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
@@ -104,6 +123,31 @@ describe("parseEnvironmentValues", () => {
       parseEnvironmentValues({
         PROXY_SERVER_CORS_ORIGIN: "https://example.com,",
       });
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("exits process when LADYBUG_DATABASES is invalid JSON", () => {
+      parseEnvironmentValues({ LADYBUG_DATABASES: "not json" });
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("exits process when LADYBUG_DATABASES is an array", () => {
+      parseEnvironmentValues({ LADYBUG_DATABASES: '["/data/db.lbug"]' });
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("exits process when LADYBUG_DATABASES has an empty database name", () => {
+      parseEnvironmentValues({ LADYBUG_DATABASES: '{"":"/data/db.lbug"}' });
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("exits process when LADYBUG_DATABASES has an empty path", () => {
+      parseEnvironmentValues({ LADYBUG_DATABASES: '{"analytics":""}' });
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("exits process when LADYBUG_DATABASES has a non-string path", () => {
+      parseEnvironmentValues({ LADYBUG_DATABASES: '{"analytics":1}' });
       expect(process.exit).toHaveBeenCalledWith(1);
     });
 

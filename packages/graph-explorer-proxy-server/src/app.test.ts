@@ -1,8 +1,12 @@
+import type { NeptuneOpenCypherResponse } from "@graph-explorer/shared/ladybug";
+
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { Readable } from "stream";
 import request from "supertest";
+
+import type { LadybugProxyManager } from "./ladybug.ts";
 
 import { createApp } from "./app.ts";
 import { createLogger } from "./logging.ts";
@@ -13,13 +17,19 @@ const mockFetch = vi.mocked(fetch);
 
 const testVersion = "1.2.3";
 
-function createTestApp(configPath = ".", corsOrigin?: string[]) {
+function createTestApp(
+  configPath = ".",
+  corsOrigin?: string[],
+  staticFilesPath = ".",
+  ladybug?: LadybugProxyManager,
+) {
   const app = createApp({
     configPath,
     staticFilesVirtualPath: "/explorer",
-    staticFilesPath: ".",
+    staticFilesPath,
     version: testVersion,
     corsOrigin,
+    ladybug,
   });
   app.locals.logger = createLogger({
     HOST: "localhost",
@@ -60,6 +70,27 @@ function mockFetchOnce(body = "ok", status = 200, headers = {}) {
   mockFetch.mockResolvedValueOnce(
     createMockFetchResponse(body, status, headers) as any,
   );
+}
+
+function createFakeLadybugManager({
+  databases = ["main"],
+  isConfigured = true,
+  results = [{ value: "ok" }],
+}: {
+  databases?: string[];
+  isConfigured?: boolean;
+  results?: NeptuneOpenCypherResponse["results"];
+} = {}): LadybugProxyManager {
+  return {
+    isConfigured,
+    hasDatabase: vi.fn((databaseName: string) =>
+      databases.includes(databaseName),
+    ),
+    query: vi.fn(
+      (): Promise<NeptuneOpenCypherResponse> => Promise.resolve({ results }),
+    ),
+    closeAll: vi.fn(async () => {}),
+  };
 }
 
 describe("createApp", () => {
@@ -214,6 +245,25 @@ describe("createApp", () => {
     const app = createTestApp();
     const response = await request(app).get("/nonexistent");
     expect(response.status).toBe(404);
+  });
+
+  it("serves Graph Explorer UI static files with cross-origin isolation headers", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ge-static-test-"));
+    try {
+      fs.writeFileSync(path.join(tmpDir, "index.html"), "<!doctype html>");
+      const app = createTestApp(".", undefined, tmpDir);
+      const response = await request(app).get("/explorer/index.html");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["cross-origin-opener-policy"]).toBe(
+        "same-origin",
+      );
+      expect(response.headers["cross-origin-embedder-policy"]).toBe(
+        "require-corp",
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("GET /defaultConnection serves defaultConnection.json from configPath", async () => {
@@ -519,6 +569,62 @@ describe("createApp", () => {
         .send({ query: "MATCH (n) RETURN n" });
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /ladybug/:dbName/openCypher", () => {
+    it("returns 503 when no Ladybug manager is configured", async () => {
+      const app = createTestApp();
+
+      const response = await request(app)
+        .post("/ladybug/main/openCypher")
+        .send({ query: "MATCH (n) RETURN n" });
+
+      expect(response.status).toBe(503);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unknown configured Ladybug database", async () => {
+      const ladybug = createFakeLadybugManager({ databases: ["main"] });
+      const app = createTestApp(".", undefined, ".", ladybug);
+
+      const response = await request(app)
+        .post("/ladybug/missing/openCypher")
+        .send({ query: "MATCH (n) RETURN n" });
+
+      expect(response.status).toBe(404);
+      expect(ladybug.hasDatabase).toHaveBeenCalledWith("missing");
+      expect(ladybug.query).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when the Ladybug query is missing", async () => {
+      const ladybug = createFakeLadybugManager();
+      const app = createTestApp(".", undefined, ".", ladybug);
+
+      const response = await request(app)
+        .post("/ladybug/main/openCypher")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(ladybug.query).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("queries the native Ladybug database and returns result sets", async () => {
+      const results = [{ name: "airport" }];
+      const ladybug = createFakeLadybugManager({ results });
+      const app = createTestApp(".", undefined, ".", ladybug);
+      const query = "MATCH (n) RETURN n";
+
+      const response = await request(app)
+        .post("/ladybug/main/openCypher")
+        .send({ query });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ results });
+      expect(ladybug.query).toHaveBeenCalledWith("main", query);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 

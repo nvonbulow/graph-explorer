@@ -5,6 +5,7 @@ import packageJson from "../package.json" with { type: "json" };
 import { createApp } from "./app.ts";
 import { parseEnvironmentValues } from "./env.ts";
 import { handleError } from "./error-handler.ts";
+import { createLadybugProxyManager } from "./ladybug.ts";
 import { createLogger } from "./logging.ts";
 import { clientRoot, isDirectory } from "./paths.ts";
 import { resolveServerConfig, ServerConfigError } from "./server-config.ts";
@@ -49,12 +50,15 @@ const {
   useHttps,
 } = serverConfig;
 
+const ladybug = createLadybugProxyManager(env.LADYBUG_DATABASES ?? {});
+
 const app = createApp({
   configPath,
   staticFilesVirtualPath,
   staticFilesPath,
   version: packageJson.version,
   corsOrigin: env.PROXY_SERVER_CORS_ORIGIN,
+  ladybug,
 });
 
 // Store logger on app.locals for access in middleware and routes
@@ -87,10 +91,21 @@ process.on("unhandledRejection", reason => {
 });
 
 // Watch for shutdown events and close gracefully.
+function closeLadybugDatabases() {
+  void ladybug.closeAll().catch(error => {
+    handleError(error, logger);
+  });
+}
+
 function gracefulShutdown(signal: string) {
   logger.info(`${signal} signal received: closing HTTP server`);
-  server.close(() => {
-    logger.info("HTTP server closed");
+  server.close(error => {
+    if (error) {
+      handleError(error, logger);
+    } else {
+      logger.info("HTTP server closed");
+    }
+    closeLadybugDatabases();
   });
 }
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

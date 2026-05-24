@@ -7,7 +7,34 @@ export const neptuneServiceTypeOptions = [
 ] as const;
 export type NeptuneServiceType = (typeof neptuneServiceTypeOptions)[number];
 
+export const connectionBackendOptions = [
+  "remote",
+  "ladybug-wasm-local-file",
+  "ladybug-remote",
+] as const;
+export type ConnectionBackend = (typeof connectionBackendOptions)[number];
+
+export type LadybugLocalFileConnectionMetadata = {
+  fileName: string;
+  fileSize: number;
+  lastModified: number;
+  runtimeId: string;
+};
+
+export type LadybugRemoteConnectionMetadata = {
+  databaseName: string;
+};
+
+export type LadybugConnectionMetadata = Partial<
+  LadybugLocalFileConnectionMetadata & LadybugRemoteConnectionMetadata
+>;
+
 export type ConnectionConfig = {
+  /**
+   * Selects the transport/backend used for this connection.
+   * By default, legacy connections use the remote HTTP/proxy backend.
+   */
+  backend?: ConnectionBackend;
   /**
    * Base URL to access to the database through HTTPs endpoints
    */
@@ -22,6 +49,10 @@ export type ConnectionConfig = {
    * all requests should be sent through the nodejs proxy-server.
    */
   proxyConnection?: boolean;
+  /**
+   * Ladybug-specific persisted metadata. File bytes must not be stored here.
+   */
+  ladybug?: LadybugConnectionMetadata;
   /**
    * If it is Neptune, the URL of the database.
    */

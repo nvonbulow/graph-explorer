@@ -4,7 +4,24 @@ import type { ConfigurationContextProps } from "@/core";
 
 import { toJsonFileData } from "./fileData";
 
+type LadybugLocalConnection = {
+  backend?: unknown;
+};
+
+function isLadybugLocalConnection(connection: unknown): boolean {
+  return (
+    (connection as LadybugLocalConnection | undefined)?.backend ===
+    "ladybug-wasm-local-file"
+  );
+}
+
 const saveConfigurationToFile = (config: ConfigurationContextProps) => {
+  if (isLadybugLocalConnection(config.connection)) {
+    throw new Error(
+      "Local Ladybug configurations cannot be exported because database file bytes are stored only in the browser.",
+    );
+  }
+
   const exportableConfig = {
     id: config.id,
     displayLabel: config.displayLabel || config.id,

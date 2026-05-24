@@ -4,6 +4,9 @@ import {
   createRandomName,
   createRandomUrlString,
 } from "@shared/utils/testing";
+import { beforeEach, vi } from "vitest";
+
+import type { FeatureFlags, NormalizedConnection } from "@/core";
 
 import {
   createRandomAwsRegion,
@@ -11,6 +14,36 @@ import {
   createRandomServiceType,
 } from "@/utils/testing";
 
+const connectorMocks = vi.hoisted(() => ({
+  createGremlinExplorer: vi.fn(),
+  createLadybugOpenCypherDialect: vi.fn(() => ({ dialect: "ladybug" })),
+  createLadybugWasmOpenCypherFetch: vi.fn(),
+  createOpenCypherExplorer: vi.fn(),
+  createSparqlExplorer: vi.fn(),
+}));
+
+vi.mock("@/connector/gremlin/gremlinExplorer", () => ({
+  createGremlinExplorer: connectorMocks.createGremlinExplorer,
+}));
+
+vi.mock("@/connector/openCypher/dialects/ladybug", () => ({
+  createLadybugOpenCypherDialect: connectorMocks.createLadybugOpenCypherDialect,
+}));
+
+vi.mock("@/connector/openCypher/openCypherExplorer", () => ({
+  createOpenCypherExplorer: connectorMocks.createOpenCypherExplorer,
+}));
+
+vi.mock("@/connector/sparql/sparqlExplorer", () => ({
+  createSparqlExplorer: connectorMocks.createSparqlExplorer,
+}));
+
+vi.mock("@/ladybug-wasm/fetchFactory", () => ({
+  createLadybugWasmOpenCypherFetch:
+    connectorMocks.createLadybugWasmOpenCypherFetch,
+}));
+
+import { createExplorerFromConnection } from "./connector";
 import {
   DefaultConnectionDataSchema,
   mapToConnection,
@@ -36,6 +69,83 @@ describe("mapToConnection", () => {
           defaultConnectionData.GRAPH_EXP_NODE_EXPANSION_LIMIT,
       },
     });
+  });
+});
+
+describe("createExplorerFromConnection", () => {
+  const featureFlags: FeatureFlags = {
+    allowLoggingDbQuery: false,
+    showDebugActions: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test("should keep default remote openCypher explorer behavior", () => {
+    const connection = createConnection({
+      backend: "remote",
+      queryEngine: "openCypher",
+    });
+
+    createExplorerFromConnection(connection, featureFlags);
+
+    expect(connectorMocks.createOpenCypherExplorer).toHaveBeenCalledWith(
+      connection,
+      featureFlags,
+    );
+  });
+
+  test("should use Ladybug dialect and WASM fetch for local Ladybug files", () => {
+    const connection = createConnection({
+      backend: "ladybug-wasm-local-file",
+      queryEngine: "openCypher",
+      url: "/ladybug-wasm/runtime-1",
+      ladybug: {
+        fileName: "data.lbug",
+        fileSize: 1,
+        lastModified: 2,
+        runtimeId: "runtime-1",
+      },
+    });
+
+    createExplorerFromConnection(connection, featureFlags);
+
+    expect(connectorMocks.createLadybugOpenCypherDialect).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(connectorMocks.createOpenCypherExplorer).toHaveBeenCalledWith(
+      connection,
+      featureFlags,
+      {
+        dialect: { dialect: "ladybug" },
+        fetchFactory: connectorMocks.createLadybugWasmOpenCypherFetch,
+      },
+    );
+  });
+
+  test("should use Ladybug dialect and default fetch for remote Ladybug", () => {
+    const connection = createConnection({
+      backend: "ladybug-remote",
+      queryEngine: "openCypher",
+      url: "/ladybug/db",
+      ladybug: {
+        databaseName: "db",
+      },
+    });
+
+    createExplorerFromConnection(connection, featureFlags);
+
+    expect(connectorMocks.createLadybugOpenCypherDialect).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(connectorMocks.createOpenCypherExplorer).toHaveBeenCalledWith(
+      connection,
+      featureFlags,
+      {
+        dialect: { dialect: "ladybug" },
+      },
+    );
   });
 });
 
@@ -107,6 +217,20 @@ describe("DefaultConnectionDataSchema", () => {
     );
   });
 });
+
+function createConnection(
+  overrides?: Partial<NormalizedConnection>,
+): NormalizedConnection {
+  return {
+    backend: "remote",
+    url: "https://example.com",
+    graphDbUrl: "",
+    queryEngine: "gremlin",
+    proxyConnection: false,
+    awsAuthEnabled: false,
+    ...overrides,
+  } as NormalizedConnection;
+}
 
 function createRandomDefaultConnectionData() {
   return {

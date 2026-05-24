@@ -73,21 +73,87 @@ export type ConnectionDetailProps = {
   config: ConfigurationContextProps;
 };
 
+type LadybugConnectionMetadata = {
+  runtimeId?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  databaseName?: string;
+};
+
+type ExtendedConnectionConfig = NonNullable<
+  ConfigurationContextProps["connection"]
+> & {
+  backend?: "remote" | "ladybug-wasm-local-file" | "ladybug-remote";
+  ladybug?: LadybugConnectionMetadata;
+};
+
+const LOCAL_LADYBUG_EXPORT_DISABLED_MESSAGE =
+  "Local Ladybug file connections cannot be exported because OPFS file locality makes the exported config unusable.";
+
+function getConnectionInfo(
+  connection: ExtendedConnectionConfig | undefined,
+  isLadybugLocal: boolean,
+  isLadybugRemote: boolean,
+) {
+  if (!connection) {
+    return { label: "Database URL", value: LABELS.MISSING_VALUE };
+  }
+
+  if (isLadybugLocal) {
+    const fileName = connection.ladybug?.fileName || "Unknown file";
+    const runtimeId = connection.ladybug?.runtimeId || "Unknown runtime";
+    const fileSize =
+      typeof connection.ladybug?.fileSize === "number"
+        ? `${connection.ladybug.fileSize.toLocaleString()} bytes`
+        : undefined;
+
+    return {
+      label: "Ladybug Local File",
+      value: (
+        <span className="inline-flex flex-col">
+          <span>{fileName}</span>
+          {fileSize ? <span>{fileSize}</span> : null}
+          <span>Runtime ID: {runtimeId}</span>
+        </span>
+      ),
+    };
+  }
+
+  if (isLadybugRemote) {
+    return {
+      label: "Ladybug Database",
+      value: connection.ladybug?.databaseName || LABELS.MISSING_VALUE,
+    };
+  }
+
+  const dbUrl = connection.proxyConnection
+    ? connection.graphDbUrl
+    : connection.url;
+  return {
+    label: "Database URL",
+    value: dbUrl || LABELS.MISSING_VALUE,
+  };
+}
+
 function ConnectionDetail({ config }: ConnectionDetailProps) {
   const t = useTranslations();
   const [edit, setEdit] = useState(false);
 
   const { isFetching } = useSchemaSync();
 
-  const onConfigExport = () => saveConfigurationToFile(config);
+  const connection = config.connection as ExtendedConnectionConfig | undefined;
+  const isLadybugLocal = connection?.backend === "ladybug-wasm-local-file";
+  const isLadybugRemote = connection?.backend === "ladybug-remote";
+  const onConfigExport = () => {
+    if (!isLadybugLocal) {
+      saveConfigurationToFile(config);
+    }
+  };
 
   const deleteActiveConfig = useDeleteActiveConfiguration();
 
-  const dbUrl = config.connection
-    ? config.connection.proxyConnection
-      ? config.connection.graphDbUrl
-      : config.connection.url
-    : LABELS.MISSING_VALUE;
+  const dbInfo = getConnectionInfo(connection, isLadybugLocal, isLadybugRemote);
 
   const connectionName = config.displayLabel || config.id;
 
@@ -100,10 +166,14 @@ function ConnectionDetail({ config }: ConnectionDetailProps) {
         </PanelTitle>
         <PanelHeaderActions>
           <Button
-            tooltip="Export Connection"
+            tooltip={
+              isLadybugLocal
+                ? LOCAL_LADYBUG_EXPORT_DISABLED_MESSAGE
+                : "Export Connection"
+            }
             variant="ghost"
             size="icon"
-            disabled={isFetching}
+            disabled={isFetching || isLadybugLocal}
             onClick={onConfigExport}
           >
             <TrayArrowIcon />
@@ -123,6 +193,10 @@ function ConnectionDetail({ config }: ConnectionDetailProps) {
             isSync={isFetching}
             deleteActiveConfig={deleteActiveConfig}
             saveCopy={onConfigExport}
+            canSaveCopy={!isLadybugLocal}
+            saveCopyUnavailableMessage={
+              isLadybugLocal ? LOCAL_LADYBUG_EXPORT_DISABLED_MESSAGE : undefined
+            }
           />
         </PanelHeaderActions>
       </PanelHeader>
@@ -143,8 +217,8 @@ function ConnectionDetail({ config }: ConnectionDetailProps) {
             </InfoItemIcon>
 
             <InfoItemContent>
-              <InfoItemLabel>Database URL</InfoItemLabel>
-              <InfoItemValue>{dbUrl}</InfoItemValue>
+              <InfoItemLabel>{dbInfo.label}</InfoItemLabel>
+              <InfoItemValue>{dbInfo.value}</InfoItemValue>
             </InfoItemContent>
           </InfoItem>
         </InfoBar>

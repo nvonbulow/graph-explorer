@@ -116,16 +116,76 @@ export function mergeConfiguration(
 }
 
 export function normalizeConnection(connection: ConnectionConfig) {
+  const backend = connection.backend ?? "remote";
+  const url = connection.url.replace(/\/$/, "") || "";
+  const graphDbUrl = connection.graphDbUrl?.replace(/\/$/, "") || "";
+
+  if (backend === "ladybug-wasm-local-file") {
+    const runtimeId = readLadybugRuntimeId(connection);
+
+    return {
+      ...connection,
+      backend,
+      url:
+        runtimeId === undefined
+          ? url
+          : `/ladybug-wasm/${encodeURIComponent(runtimeId)}`,
+      queryEngine: "openCypher" as const,
+      graphDbUrl,
+      proxyConnection: false,
+      awsAuthEnabled: connection.awsAuthEnabled ?? false,
+    };
+  }
+
+  if (backend === "ladybug-remote") {
+    const databaseName = readLadybugDatabaseName(connection);
+
+    return {
+      ...connection,
+      backend,
+      url:
+        databaseName === undefined
+          ? url
+          : `/ladybug/${encodeURIComponent(databaseName)}`,
+      queryEngine: "openCypher" as const,
+      graphDbUrl,
+      proxyConnection:
+        connection.proxyConnection ?? connection.graphDbUrl != null,
+      awsAuthEnabled: connection.awsAuthEnabled ?? false,
+    };
+  }
+
   return {
     ...connection,
+    backend,
     // Remove trailing slash
-    url: connection.url.replace(/\/$/, "") || "",
+    url,
     queryEngine: connection.queryEngine || "gremlin",
-    graphDbUrl: connection.graphDbUrl?.replace(/\/$/, "") || "",
+    graphDbUrl,
     proxyConnection:
       connection.proxyConnection ?? connection.graphDbUrl != null,
     awsAuthEnabled: connection.awsAuthEnabled ?? false,
   };
+}
+
+function readLadybugRuntimeId(connection: ConnectionConfig) {
+  const ladybug = connection.ladybug;
+  const runtimeId =
+    ladybug != null && "runtimeId" in ladybug ? ladybug.runtimeId : undefined;
+  return typeof runtimeId === "string" && runtimeId.length > 0
+    ? runtimeId
+    : undefined;
+}
+
+function readLadybugDatabaseName(connection: ConnectionConfig) {
+  const ladybug = connection.ladybug;
+  const databaseName =
+    ladybug != null && "databaseName" in ladybug
+      ? ladybug.databaseName
+      : undefined;
+  return typeof databaseName === "string" && databaseName.length > 0
+    ? databaseName
+    : undefined;
 }
 export type NormalizedConnection = ReturnType<typeof normalizeConnection>;
 

@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { DatabaseIcon } from "lucide-react";
+import { DatabaseIcon, FolderOpenIcon } from "lucide-react";
 import { useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 
@@ -36,6 +36,7 @@ import { cn } from "@/utils";
 
 import { ConnectionRow } from "./ConnectionRow";
 import { useImportConnectionFile } from "./useImportConnectionFile";
+import { useOpenLadybugFile } from "./useOpenLadybugFile";
 
 export type AvailableConnectionsProps = {
   isSync: boolean;
@@ -45,6 +46,7 @@ const AvailableConnections = ({ isSync }: AvailableConnectionsProps) => {
   const activeConnectionId = useAtomValue(activeConfigurationAtom);
   const allConnections = useAllConnections();
   const importConnectionFile = useImportConnectionFile();
+  const openLadybugFile = useOpenLadybugFile();
   const [isDialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -65,6 +67,20 @@ const AvailableConnections = ({ isSync }: AvailableConnectionsProps) => {
                 disabled={isSync}
               >
                 <TrayArrowIcon style={{ transform: "rotate(180deg)" }} />
+              </Button>
+            </FileButton>
+            <FileButton
+              onChange={payload => payload && openLadybugFile(payload)}
+              accept=".lbug"
+              asChild
+            >
+              <Button
+                tooltip="Open Ladybug file"
+                variant="ghost"
+                size="icon"
+                disabled={isSync}
+              >
+                <FolderOpenIcon />
               </Button>
             </FileButton>
             <PanelHeaderDivider />
@@ -99,6 +115,13 @@ const AvailableConnections = ({ isSync }: AvailableConnectionsProps) => {
                     asChild
                   >
                     <Button>Import Connection</Button>
+                  </FileButton>
+                  <FileButton
+                    onChange={payload => payload && openLadybugFile(payload)}
+                    accept=".lbug"
+                    asChild
+                  >
+                    <Button disabled={isSync}>Open Ladybug file</Button>
                   </FileButton>
                 </EmptyStateActions>
               </EmptyStateContent>

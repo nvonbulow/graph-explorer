@@ -1,8 +1,61 @@
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { createReadStream, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { loadEnv, type PluginOption } from "vite";
 import { coverageConfigDefaults, defineConfig } from "vitest/config";
+
+const ladybugWasmWorkerFileName = "lbug_wasm_worker.js";
+const require = createRequire(import.meta.url);
+const ladybugWasmCoreDirectory = dirname(
+  require.resolve("@ladybugdb/wasm-core"),
+);
+const ladybugWasmWorkerPath = join(
+  ladybugWasmCoreDirectory,
+  "multithreaded",
+  ladybugWasmWorkerFileName,
+);
+
+const crossOriginIsolationHeaders = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+};
+
+const ladybugWasmWorkerPlugin = (): PluginOption => {
+  return {
+    name: "ladybug-wasm-worker",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = request.url?.split("?", 1)[0];
+        if (!pathname?.endsWith(`/${ladybugWasmWorkerFileName}`)) {
+          next();
+          return;
+        }
+
+        response.statusCode = 200;
+        response.setHeader("Content-Type", "text/javascript");
+        response.setHeader(
+          "Cross-Origin-Opener-Policy",
+          crossOriginIsolationHeaders["Cross-Origin-Opener-Policy"],
+        );
+        response.setHeader(
+          "Cross-Origin-Embedder-Policy",
+          crossOriginIsolationHeaders["Cross-Origin-Embedder-Policy"],
+        );
+        createReadStream(ladybugWasmWorkerPath).pipe(response);
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: ladybugWasmWorkerFileName,
+        source: readFileSync(ladybugWasmWorkerPath),
+      });
+    },
+  };
+};
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -34,24 +87,29 @@ export default defineConfig(({ mode }) => {
       host: true,
       port: Number(env.GRAPH_EXP_DEV_PORT) || undefined,
       strictPort: !!env.GRAPH_EXP_DEV_PORT,
+      headers: crossOriginIsolationHeaders,
       watch: {
         ignored: ["**/*.test.ts", "**/*.test.tsx"],
       },
       proxy: {
         // Forward API requests to the Express proxy server in dev mode so
         // the browser stays on the same origin and CORS is not needed.
-        "^/(defaultConnection|gremlin|logger|openCypher|pg|rdf|sparql|status|summary)(/|$)":
+        "^/(defaultConnection|gremlin|ladybug|logger|openCypher|pg|rdf|sparql|status|summary)(/|$)":
           {
             target: expressServerUrl,
             changeOrigin: true,
           },
       },
     },
+    preview: {
+      headers: crossOriginIsolationHeaders,
+    },
     base: env.GRAPH_EXP_ENV_ROOT_FOLDER,
     envPrefix: "GRAPH_EXP",
     define: {
       __GRAPH_EXP_VERSION__: JSON.stringify(process.env.npm_package_version),
     },
+
     plugins: [
       htmlPlugin(),
       tailwindcss(),
@@ -59,6 +117,7 @@ export default defineConfig(({ mode }) => {
       babel({
         presets: [reactCompilerPreset()],
       }),
+      ladybugWasmWorkerPlugin(),
     ],
     resolve: {
       tsconfigPaths: true,

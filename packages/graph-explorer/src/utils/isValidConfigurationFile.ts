@@ -7,6 +7,30 @@ import type {
   VertexTypeConfig,
 } from "@/core";
 
+type LadybugConnection = {
+  backend?: unknown;
+  url?: unknown;
+  ladybug?: {
+    databaseName?: unknown;
+  };
+};
+
+const getLadybugProxyUrl = (databaseName: string) =>
+  `/ladybug/${encodeURIComponent(databaseName)}`;
+
+const isValidLadybugRemoteConnection = (connection: LadybugConnection) => {
+  const databaseName = connection.ladybug?.databaseName;
+
+  if (typeof databaseName !== "string" || databaseName.length === 0) {
+    return false;
+  }
+
+  return (
+    connection.url === getLadybugProxyUrl(databaseName) ||
+    (typeof connection.url === "string" && isValidHttpUrl(connection.url))
+  );
+};
+
 const isValidHttpUrl = (str: string) => {
   let url;
   try {
@@ -58,10 +82,23 @@ const isValidConfigurationFile = (
     return false;
   }
 
+  const connection = data.connection as LadybugConnection;
+  if (connection.backend === "ladybug-wasm-local-file") {
+    return false;
+  }
+
+  if (
+    connection.backend === "ladybug-remote" &&
+    !isValidLadybugRemoteConnection(connection)
+  ) {
+    return false;
+  }
+
   if (
     !data.connection.url ||
     !data.connection.queryEngine ||
-    !isValidHttpUrl(data.connection.url) ||
+    (connection.backend !== "ladybug-remote" &&
+      !isValidHttpUrl(data.connection.url)) ||
     !queryEngineOptions.includes(data.connection.queryEngine)
   ) {
     return false;

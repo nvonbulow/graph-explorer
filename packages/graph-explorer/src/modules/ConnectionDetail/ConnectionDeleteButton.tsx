@@ -14,21 +14,29 @@ import {
   Paragraph,
 } from "@/components";
 
+type ConnectionDeleteButtonProps = {
+  connectionName: string;
+  isSync: boolean;
+  deleteActiveConfig: () => void;
+  saveCopy: () => void;
+  canSaveCopy: boolean;
+  saveCopyUnavailableMessage?: string;
+};
+
 export default function ConnectionDeleteButton({
   connectionName,
   isSync,
   deleteActiveConfig,
   saveCopy,
-}: {
-  connectionName: string;
-  isSync: boolean;
-  deleteActiveConfig: () => void;
-  saveCopy: () => void;
-}) {
+  canSaveCopy,
+  saveCopyUnavailableMessage,
+}: ConnectionDeleteButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const saveAndDelete = () => {
-    saveCopy();
+    if (canSaveCopy) {
+      saveCopy();
+    }
     deleteActiveConfig();
   };
 
@@ -61,11 +69,16 @@ export default function ConnectionDeleteButton({
                 <strong className="font-bold">{connectionName}</strong>? This
                 cannot be undone.
               </Paragraph>
+              {!canSaveCopy && saveCopyUnavailableMessage ? (
+                <Paragraph>{saveCopyUnavailableMessage}</Paragraph>
+              ) : null}
             </div>
           </DialogBody>
           <DialogFooter>
             <Button onClick={() => setIsOpen(false)}>Cancel</Button>
-            <Button onClick={saveAndDelete}>Save a Copy & Delete</Button>
+            {canSaveCopy ? (
+              <Button onClick={saveAndDelete}>Save a Copy & Delete</Button>
+            ) : null}
             <Button onClick={deleteActiveConfig} variant="danger">
               Delete
             </Button>

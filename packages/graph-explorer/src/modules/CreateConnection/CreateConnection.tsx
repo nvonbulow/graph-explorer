@@ -34,8 +34,22 @@ import {
   DEFAULT_NODE_EXPAND_LIMIT,
 } from "@/utils/constants";
 
+type LadybugConnectionBackend =
+  | "remote"
+  | "ladybug-wasm-local-file"
+  | "ladybug-remote";
+
+type LadybugConnectionMetadata = {
+  runtimeId?: string;
+  fileName?: string;
+  fileSize?: number;
+  lastModified?: number;
+  databaseName?: string;
+};
+
 type ConnectionForm = {
   name?: string;
+  backend?: LadybugConnectionBackend;
   url?: string;
   queryEngine?: QueryEngine;
   proxyConnection?: boolean;
@@ -47,6 +61,7 @@ type ConnectionForm = {
   fetchTimeoutMs?: number;
   nodeExpansionLimitEnabled: boolean;
   nodeExpansionLimit?: number;
+  ladybug?: LadybugConnectionMetadata;
 };
 
 const CONNECTIONS_OP: {
@@ -58,25 +73,101 @@ const CONNECTIONS_OP: {
   { label: "SPARQL - RDF (Resource Description Framework)", value: "sparql" },
 ];
 
+const CONNECTION_BACKENDS_OP: {
+  label: string;
+  value: LadybugConnectionBackend;
+}[] = [
+  { label: "Remote graph database", value: "remote" },
+  { label: "Ladybug remote proxy database", value: "ladybug-remote" },
+  { label: "Ladybug local file", value: "ladybug-wasm-local-file" },
+];
+
+function normalizeLadybugDatabaseName(databaseName: string | undefined) {
+  return databaseName?.trim().replace(/^\/+|\/+$/g, "") ?? "";
+}
+
+function getLadybugProxyUrl(databaseName: string) {
+  return `/ladybug/${encodeURIComponent(databaseName)}`;
+}
+
 export type CreateConnectionProps = {
   existingConfig?: ConfigurationContextProps;
   onClose(): void;
 };
 
+type ExtendedConnectionConfig = ConnectionConfig & {
+  backend?: LadybugConnectionBackend;
+  ladybug?: LadybugConnectionMetadata;
+};
+
 function mapToConnection(data: Required<ConnectionForm>): ConnectionConfig {
-  return {
-    url: data.url,
-    queryEngine: data.queryEngine,
-    proxyConnection: data.proxyConnection,
-    graphDbUrl: data.graphDbUrl,
-    awsAuthEnabled: data.awsAuthEnabled,
-    serviceType: data.serviceType,
-    awsRegion: data.awsRegion,
+  const isLadybugRemote = data.backend === "ladybug-remote";
+  const ladybugDatabaseName = normalizeLadybugDatabaseName(
+    data.ladybug?.databaseName,
+  );
+  const connection: ExtendedConnectionConfig = {
+    url: isLadybugRemote ? getLadybugProxyUrl(ladybugDatabaseName) : data.url,
+    queryEngine: isLadybugRemote ? "openCypher" : data.queryEngine,
+    proxyConnection: isLadybugRemote ? false : data.proxyConnection,
+    graphDbUrl: isLadybugRemote ? undefined : data.graphDbUrl,
+    awsAuthEnabled: isLadybugRemote ? false : data.awsAuthEnabled,
+    serviceType: isLadybugRemote ? undefined : data.serviceType,
+    awsRegion: isLadybugRemote ? undefined : data.awsRegion,
     fetchTimeoutMs: data.fetchTimeoutEnabled ? data.fetchTimeoutMs : undefined,
     nodeExpansionLimit: data.nodeExpansionLimitEnabled
       ? data.nodeExpansionLimit
       : undefined,
+    backend: data.backend,
+    ladybug: isLadybugRemote
+      ? { databaseName: ladybugDatabaseName }
+      : data.ladybug,
   };
+
+  return connection;
+}
+
+type ComparableConnection = {
+  backend?: LadybugConnectionBackend;
+  databaseName?: string;
+  graphDbUrl?: string;
+  queryEngine?: QueryEngine;
+  url?: string;
+};
+
+function mapToComparableConnection(
+  data: ConnectionForm | undefined,
+): ComparableConnection | undefined {
+  if (!data) {
+    return undefined;
+  }
+
+  const connection = mapToConnection(
+    data as Required<ConnectionForm>,
+  ) as ExtendedConnectionConfig;
+
+  return {
+    backend: connection.backend,
+    databaseName: connection.ladybug?.databaseName,
+    graphDbUrl: connection.graphDbUrl,
+    queryEngine: connection.queryEngine,
+    url: connection.url,
+  };
+}
+
+function hasMeaningfulConnectionChange(
+  original: ConnectionForm | undefined,
+  updated: Required<ConnectionForm>,
+) {
+  const originalConnection = mapToComparableConnection(original);
+  const updatedConnection = mapToComparableConnection(updated);
+
+  return (
+    originalConnection?.url !== updatedConnection?.url ||
+    originalConnection?.graphDbUrl !== updatedConnection?.graphDbUrl ||
+    originalConnection?.queryEngine !== updatedConnection?.queryEngine ||
+    originalConnection?.backend !== updatedConnection?.backend ||
+    originalConnection?.databaseName !== updatedConnection?.databaseName
+  );
 }
 
 function mapToConnectionForm(
@@ -86,13 +177,15 @@ function mapToConnectionForm(
     return;
   }
 
+  const connection = (existingConfig.connection ??
+    {}) as ExtendedConnectionConfig;
   const result: ConnectionForm = {
-    ...existingConfig.connection,
+    ...connection,
+    backend: connection.backend ?? "remote",
+    ladybug: connection.ladybug,
     name: existingConfig.displayLabel ?? existingConfig.id,
-    fetchTimeoutEnabled: Boolean(existingConfig.connection?.fetchTimeoutMs),
-    nodeExpansionLimitEnabled: Boolean(
-      existingConfig.connection?.nodeExpansionLimit,
-    ),
+    fetchTimeoutEnabled: Boolean(connection.fetchTimeoutMs),
+    nodeExpansionLimitEnabled: Boolean(connection.nodeExpansionLimit),
   };
   return result;
 }
@@ -144,11 +237,12 @@ const CreateConnection = ({
           return updated;
         });
 
-        const urlChange = initialData?.url !== data.url;
-        const dbUrlChange = initialData?.graphDbUrl !== data.graphDbUrl;
-        const typeChange = initialData?.queryEngine !== data.queryEngine;
+        const meaningfulConnectionChange = hasMeaningfulConnectionChange(
+          initialData,
+          data,
+        );
 
-        if (urlChange || dbUrlChange || typeChange) {
+        if (meaningfulConnectionChange) {
           logger.log(
             "Clearing cached schema and previous graph session because connection to database meaningfully changed",
             { original: initialData, updated: data },
@@ -178,8 +272,13 @@ const CreateConnection = ({
     ),
   );
 
+  const initialBackend = initialData?.backend ?? "remote";
   const [form, setForm] = useState<ConnectionForm>({
-    queryEngine: initialData?.queryEngine || "gremlin",
+    backend: initialBackend,
+    queryEngine:
+      initialBackend === "ladybug-remote"
+        ? "openCypher"
+        : initialData?.queryEngine || "gremlin",
     name:
       initialData?.name ||
       `Connection (${formatDate(new Date(), "yyyy-MM-dd HH:mm")})`,
@@ -193,13 +292,53 @@ const CreateConnection = ({
     fetchTimeoutMs: initialData?.fetchTimeoutMs,
     nodeExpansionLimitEnabled: initialData?.nodeExpansionLimitEnabled || false,
     nodeExpansionLimit: initialData?.nodeExpansionLimit,
+    ladybug: initialData?.ladybug,
   });
+
+  const isLadybugRemote = form.backend === "ladybug-remote";
+  const isLadybugLocal = form.backend === "ladybug-wasm-local-file";
+  const ladybugDatabaseName = normalizeLadybugDatabaseName(
+    form.ladybug?.databaseName,
+  );
+  const ladybugProxyUrl = ladybugDatabaseName
+    ? getLadybugProxyUrl(ladybugDatabaseName)
+    : "/ladybug/<databaseName>";
+  const backendOptions =
+    initialData?.backend === "ladybug-wasm-local-file"
+      ? CONNECTION_BACKENDS_OP
+      : CONNECTION_BACKENDS_OP.filter(
+          option => option.value !== "ladybug-wasm-local-file",
+        );
 
   const [hasError, setError] = useState(false);
   const onFormChange =
     (attribute: keyof ConnectionForm) =>
     (value: number | string | string[] | boolean) => {
-      if (attribute === "serviceType" && value === "neptune-graph") {
+      if (attribute === "backend" && value === "ladybug-remote") {
+        setForm(prev => ({
+          ...prev,
+          backend: "ladybug-remote",
+          queryEngine: "openCypher",
+          proxyConnection: false,
+          graphDbUrl: "",
+          awsAuthEnabled: false,
+          serviceType: "neptune-db",
+          awsRegion: "",
+        }));
+      } else if (attribute === "backend" && value === "remote") {
+        setForm(prev => {
+          const previousUrl = prev.url;
+          return {
+            ...prev,
+            backend: "remote",
+            url:
+              previousUrl?.startsWith("/ladybug/") &&
+              previousUrl === ladybugProxyUrl
+                ? ""
+                : previousUrl,
+          };
+        });
+      } else if (attribute === "serviceType" && value === "neptune-graph") {
         setForm(prev => ({
           ...prev,
           [attribute]: value,
@@ -231,19 +370,49 @@ const CreateConnection = ({
       }
     };
 
+  const onLadybugDatabaseNameChange = (value: string) => {
+    setForm(prev => ({
+      ...prev,
+      ladybug: {
+        ...prev.ladybug,
+        databaseName: value,
+      },
+    }));
+  };
+
   const reset = useResetState();
   const onSubmit = () => {
-    if (!form.name || !form.url || !form.queryEngine) {
+    if (!form.name || !form.queryEngine) {
       setError(true);
       return;
     }
 
-    if (form.proxyConnection && !form.graphDbUrl) {
+    if (isLadybugRemote && !ladybugDatabaseName) {
       setError(true);
       return;
     }
 
-    if (form.awsAuthEnabled && (!form.awsRegion || !form.serviceType)) {
+    if (!isLadybugRemote && !isLadybugLocal && !form.url) {
+      setError(true);
+      return;
+    }
+
+    if (
+      !isLadybugRemote &&
+      !isLadybugLocal &&
+      form.proxyConnection &&
+      !form.graphDbUrl
+    ) {
+      setError(true);
+      return;
+    }
+
+    if (
+      !isLadybugRemote &&
+      !isLadybugLocal &&
+      form.awsAuthEnabled &&
+      (!form.awsRegion || !form.serviceType)
+    ) {
       setError(true);
       return;
     }
@@ -267,45 +436,95 @@ const CreateConnection = ({
           />
         </FormItem>
         <FormItem>
-          <Label>Query Language</Label>
+          <Label>Backend</Label>
           <SelectField
-            options={CONNECTIONS_OP}
-            value={form.queryEngine}
-            onValueChange={onFormChange("queryEngine")}
-            disabled={form.serviceType === "neptune-graph"}
+            options={backendOptions}
+            value={form.backend}
+            onValueChange={onFormChange("backend")}
+            disabled={isLadybugLocal}
           />
         </FormItem>
-        <FormItem>
-          <Label>
-            Public or Proxy Endpoint
-            <InfoTooltip>
-              Provide the endpoint URL for an open graph database, e.g., Gremlin
-              Server. If connecting to Amazon Neptune, then provide a proxy
-              endpoint URL that is accessible from outside the VPC, e.g., EC2.
-            </InfoTooltip>
-          </Label>
-          <TextAreaField
-            aria-label="Public or Proxy Endpoint"
-            data-autofocus={true}
-            value={form.url}
-            onChange={onFormChange("url")}
-            errorMessage="URL is required"
-            placeholder="https://example.com"
-            validationState={hasError && !form.url ? "invalid" : "valid"}
-          />
-        </FormItem>
+        {isLadybugLocal ? (
+          <div className="space-y-2 rounded-md border p-3 text-sm">
+            <div className="font-medium">Ladybug local file</div>
+            <div>File: {form.ladybug?.fileName || "Unknown file"}</div>
+            <div>
+              Runtime ID: {form.ladybug?.runtimeId || "Unknown runtime"}
+            </div>
+            <div className="text-text-secondary">
+              Local Ladybug files are stored in browser OPFS. HTTP endpoint
+              fields are not used for this connection.
+            </div>
+          </div>
+        ) : isLadybugRemote ? (
+          <>
+            <FormItem>
+              <Label>Ladybug Database Name</Label>
+              <InputField
+                aria-label="Ladybug Database Name"
+                value={form.ladybug?.databaseName || ""}
+                onChange={onLadybugDatabaseNameChange}
+                errorMessage="Database name is required"
+                placeholder="air-routes"
+                validationState={
+                  hasError && !ladybugDatabaseName ? "invalid" : "valid"
+                }
+              />
+            </FormItem>
+            <FormItem>
+              <Label>Proxy Route</Label>
+              <InputField
+                aria-label="Proxy Route"
+                value={ladybugProxyUrl}
+                isReadOnly
+              />
+            </FormItem>
+          </>
+        ) : (
+          <>
+            <FormItem>
+              <Label>Query Language</Label>
+              <SelectField
+                options={CONNECTIONS_OP}
+                value={form.queryEngine}
+                onValueChange={onFormChange("queryEngine")}
+                disabled={form.serviceType === "neptune-graph"}
+              />
+            </FormItem>
+            <FormItem>
+              <Label>
+                Public or Proxy Endpoint
+                <InfoTooltip>
+                  Provide the endpoint URL for an open graph database, e.g.,
+                  Gremlin Server. If connecting to Amazon Neptune, then provide
+                  a proxy endpoint URL that is accessible from outside the VPC,
+                  e.g., EC2.
+                </InfoTooltip>
+              </Label>
+              <TextAreaField
+                aria-label="Public or Proxy Endpoint"
+                data-autofocus={true}
+                value={form.url}
+                onChange={onFormChange("url")}
+                errorMessage="URL is required"
+                placeholder="https://example.com"
+                validationState={hasError && !form.url ? "invalid" : "valid"}
+              />
+            </FormItem>
 
-        <Label className="cursor-pointer">
-          <Checkbox
-            value="proxyConnection"
-            checked={form.proxyConnection}
-            onCheckedChange={checked => {
-              onFormChange("proxyConnection")(checked);
-            }}
-          />
-          Using Proxy-Server
-        </Label>
-        {form.proxyConnection && (
+            <Label className="cursor-pointer">
+              <Checkbox
+                value="proxyConnection"
+                checked={form.proxyConnection}
+                onCheckedChange={checked => {
+                  onFormChange("proxyConnection")(checked);
+                }}
+              />
+              Using Proxy-Server
+            </Label>
+          </>
+        )}
+        {!isLadybugRemote && !isLadybugLocal && form.proxyConnection && (
           <FormItem>
             <Label>Graph Connection URL</Label>
             <TextAreaField
@@ -321,7 +540,7 @@ const CreateConnection = ({
             />
           </FormItem>
         )}
-        {form.proxyConnection && (
+        {!isLadybugRemote && !isLadybugLocal && form.proxyConnection && (
           <Label className="cursor-pointer">
             <Checkbox
               value="awsAuthEnabled"
@@ -333,35 +552,38 @@ const CreateConnection = ({
             AWS IAM Auth Enabled
           </Label>
         )}
-        {form.proxyConnection && form.awsAuthEnabled && (
-          <>
-            <FormItem>
-              <Label>AWS Region</Label>
-              <InputField
-                aria-label="AWS Region"
-                data-autofocus={true}
-                value={form.awsRegion}
-                onChange={onFormChange("awsRegion")}
-                errorMessage="Region is required"
-                placeholder="us-east-1"
-                validationState={
-                  hasError && !form.awsRegion ? "invalid" : "valid"
-                }
-              />
-            </FormItem>
-            <FormItem>
-              <Label>Service Type</Label>
-              <SelectField
-                options={[
-                  { label: "Neptune DB", value: "neptune-db" },
-                  { label: "Neptune Analytics", value: "neptune-graph" },
-                ]}
-                value={form.serviceType}
-                onValueChange={onFormChange("serviceType")}
-              />
-            </FormItem>
-          </>
-        )}
+        {!isLadybugRemote &&
+          !isLadybugLocal &&
+          form.proxyConnection &&
+          form.awsAuthEnabled && (
+            <>
+              <FormItem>
+                <Label>AWS Region</Label>
+                <InputField
+                  aria-label="AWS Region"
+                  data-autofocus={true}
+                  value={form.awsRegion}
+                  onChange={onFormChange("awsRegion")}
+                  errorMessage="Region is required"
+                  placeholder="us-east-1"
+                  validationState={
+                    hasError && !form.awsRegion ? "invalid" : "valid"
+                  }
+                />
+              </FormItem>
+              <FormItem>
+                <Label>Service Type</Label>
+                <SelectField
+                  options={[
+                    { label: "Neptune DB", value: "neptune-db" },
+                    { label: "Neptune Analytics", value: "neptune-graph" },
+                  ]}
+                  value={form.serviceType}
+                  onValueChange={onFormChange("serviceType")}
+                />
+              </FormItem>
+            </>
+          )}
         <FormItem>
           <Label className="cursor-pointer">
             <Checkbox

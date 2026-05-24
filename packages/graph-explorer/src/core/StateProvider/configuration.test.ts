@@ -32,6 +32,7 @@ import {
 /** The default empty connection values when no value is provided. */
 const defaultEmptyConnection: NormalizedConnection = {
   url: "",
+  backend: "remote",
   graphDbUrl: "",
   queryEngine: "gremlin",
   proxyConnection: false,
@@ -339,6 +340,11 @@ describe("normalizeConnection", () => {
     expect(result.queryEngine).toBe("gremlin");
   });
 
+  test("should default backend to remote", () => {
+    const result = normalizeConnection({ url: "https://example.com" });
+    expect(result.backend).toBe("remote");
+  });
+
   test("should default proxyConnection to true when graphDbUrl is present", () => {
     const result = normalizeConnection({
       url: "https://proxy.com",
@@ -355,6 +361,59 @@ describe("normalizeConnection", () => {
   test("should default awsAuthEnabled to false", () => {
     const result = normalizeConnection({ url: "https://example.com" });
     expect(result.awsAuthEnabled).toBe(false);
+  });
+
+  test("should normalize local Ladybug file connections", () => {
+    const result = normalizeConnection({
+      backend: "ladybug-wasm-local-file",
+      url: "ignored/",
+      queryEngine: "gremlin",
+      proxyConnection: true,
+      graphDbUrl: "https://db.com/",
+      ladybug: {
+        fileName: "data.lbug",
+        fileSize: 123,
+        lastModified: 456,
+        runtimeId: "tenant/db 1",
+      },
+    });
+
+    expect(result).toMatchObject({
+      backend: "ladybug-wasm-local-file",
+      url: "/ladybug-wasm/tenant%2Fdb%201",
+      queryEngine: "openCypher",
+      proxyConnection: false,
+      graphDbUrl: "https://db.com",
+      awsAuthEnabled: false,
+      ladybug: {
+        fileName: "data.lbug",
+        fileSize: 123,
+        lastModified: 456,
+        runtimeId: "tenant/db 1",
+      },
+    });
+  });
+
+  test("should normalize remote Ladybug proxy connections", () => {
+    const result = normalizeConnection({
+      backend: "ladybug-remote",
+      url: "ignored/",
+      queryEngine: "gremlin",
+      ladybug: {
+        databaseName: "tenant/db 1",
+      },
+    });
+
+    expect(result).toMatchObject({
+      backend: "ladybug-remote",
+      url: "/ladybug/tenant%2Fdb%201",
+      queryEngine: "openCypher",
+      proxyConnection: false,
+      awsAuthEnabled: false,
+      ladybug: {
+        databaseName: "tenant/db 1",
+      },
+    });
   });
 
   test("should preserve path in url", () => {

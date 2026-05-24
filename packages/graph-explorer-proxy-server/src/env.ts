@@ -6,6 +6,57 @@ const BooleanStringSchema = z
   .refine(s => s.toLowerCase() === "true" || s.toLowerCase() === "false")
   .transform(s => s.toLowerCase() === "true");
 
+const LadybugDatabasePathSchema = z.string().min(1);
+
+const LadybugDatabasesValueSchema = z.record(
+  z.string().min(1),
+  LadybugDatabasePathSchema,
+);
+
+const LadybugDatabasesSchema = z
+  .string()
+  .optional()
+  .transform((value, context) => {
+    if (!value) {
+      return undefined;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "LADYBUG_DATABASES must be valid JSON.",
+      });
+      return z.NEVER;
+    }
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "LADYBUG_DATABASES must be a JSON object.",
+      });
+      return z.NEVER;
+    }
+
+    const result = LadybugDatabasesValueSchema.safeParse(parsed);
+    if (!result.success) {
+      context.addIssue({
+        code: "custom",
+        message: z.prettifyError(result.error),
+      });
+      return z.NEVER;
+    }
+
+    return result.data;
+  })
+  .optional();
+
 /** Schema for the environment values we expect along with their defaults. */
 export const EnvironmentValuesSchema = z.object({
   HOST: z.string().default("localhost"),
@@ -33,6 +84,7 @@ export const EnvironmentValuesSchema = z.object({
         )
         .optional(),
     ),
+  LADYBUG_DATABASES: LadybugDatabasesSchema,
 });
 
 export type EnvironmentValues = z.infer<typeof EnvironmentValuesSchema>;
