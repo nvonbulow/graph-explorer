@@ -16,6 +16,8 @@ import { RequestValidationError } from "./errors.ts";
 import { type AppLogger, requestLoggingMiddleware } from "./logging.ts";
 
 const DEFAULT_SERVICE_TYPE = "neptune-db";
+const CROSS_ORIGIN_OPENER_POLICY = "same-origin";
+const CROSS_ORIGIN_EMBEDDER_POLICY = "require-corp";
 
 /**
  * Resolves a relative endpoint path against a base URL, preserving the base
@@ -109,8 +111,20 @@ export function createApp({
     express.static(path.join(configPath, "defaultConnection.json")),
   );
 
-  // Host the Graph Explorer UI static files
-  app.use(staticFilesVirtualPath, express.static(staticFilesPath));
+  // Host the Graph Explorer UI static files with cross-origin isolation for
+  // multithreaded Ladybug WASM.
+  app.use(
+    staticFilesVirtualPath,
+    (_req, res, next) => {
+      res.setHeader("Cross-Origin-Opener-Policy", CROSS_ORIGIN_OPENER_POLICY);
+      res.setHeader(
+        "Cross-Origin-Embedder-Policy",
+        CROSS_ORIGIN_EMBEDDER_POLICY,
+      );
+      next();
+    },
+    express.static(staticFilesPath),
+  );
 
   function getLogger(): AppLogger {
     return app.locals.logger;

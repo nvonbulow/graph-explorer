@@ -13,11 +13,15 @@ const mockFetch = vi.mocked(fetch);
 
 const testVersion = "1.2.3";
 
-function createTestApp(configPath = ".", corsOrigin?: string[]) {
+function createTestApp(
+  configPath = ".",
+  corsOrigin?: string[],
+  staticFilesPath = ".",
+) {
   const app = createApp({
     configPath,
     staticFilesVirtualPath: "/explorer",
-    staticFilesPath: ".",
+    staticFilesPath,
     version: testVersion,
     corsOrigin,
   });
@@ -214,6 +218,25 @@ describe("createApp", () => {
     const app = createTestApp();
     const response = await request(app).get("/nonexistent");
     expect(response.status).toBe(404);
+  });
+
+  it("serves Graph Explorer UI static files with cross-origin isolation headers", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ge-static-test-"));
+    try {
+      fs.writeFileSync(path.join(tmpDir, "index.html"), "<!doctype html>");
+      const app = createTestApp(".", undefined, tmpDir);
+      const response = await request(app).get("/explorer/index.html");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["cross-origin-opener-policy"]).toBe(
+        "same-origin",
+      );
+      expect(response.headers["cross-origin-embedder-policy"]).toBe(
+        "require-corp",
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("GET /defaultConnection serves defaultConnection.json from configPath", async () => {
