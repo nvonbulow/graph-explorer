@@ -9,6 +9,7 @@
   "type": "module",
   "exports": {
     "./types": "./src/types/index.ts",
+    "./ladybug": "./src/ladybug/index.ts",
     "./utils/testing": "./src/utils/testing/index.ts"
   },
   "devDependencies": {
