@@ -14,6 +14,7 @@ function createConnection(
   return {
     url: "http://localhost:8182",
     queryEngine: "openCypher",
+    backend: "remote",
     graphDbUrl: "",
     proxyConnection: false,
     awsAuthEnabled: false,

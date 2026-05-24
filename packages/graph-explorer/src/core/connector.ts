@@ -10,11 +10,13 @@ import {
   type LoggerConnector,
   ServerLoggerConnector,
 } from "@/connector/LoggerConnector";
+import { createLadybugOpenCypherDialect } from "@/connector/openCypher/dialects/ladybug";
 import { createOpenCypherExplorer } from "@/connector/openCypher/openCypherExplorer";
 import { createSparqlExplorer } from "@/connector/sparql/sparqlExplorer";
+import { createLadybugWasmOpenCypherFetch } from "@/ladybug-wasm/fetchFactory";
 import { logger } from "@/utils";
 
-import { featureFlagsSelector } from "./StateProvider";
+import { featureFlagsSelector, type FeatureFlags } from "./StateProvider";
 import {
   activeConnectionAtom,
   type NormalizedConnection,
@@ -34,15 +36,35 @@ export const explorerAtom = atom(get => {
     connection,
     featureFlags,
   });
+  return createExplorerFromConnection(connection, featureFlags);
+});
+
+export function createExplorerFromConnection(
+  connection: NormalizedConnection,
+  featureFlags: FeatureFlags,
+): Explorer {
   switch (connection.queryEngine) {
     case "openCypher":
+      if (connection.backend === "ladybug-wasm-local-file") {
+        return createOpenCypherExplorer(connection, featureFlags, {
+          dialect: createLadybugOpenCypherDialect(),
+          fetchFactory: createLadybugWasmOpenCypherFetch,
+        });
+      }
+
+      if (connection.backend === "ladybug-remote") {
+        return createOpenCypherExplorer(connection, featureFlags, {
+          dialect: createLadybugOpenCypherDialect(),
+        });
+      }
+
       return createOpenCypherExplorer(connection, featureFlags);
     case "sparql":
       return createSparqlExplorer(connection, featureFlags, new Map());
     case "gremlin":
       return createGremlinExplorer(connection, featureFlags);
   }
-});
+}
 
 /**
  * Explorer based on the active connection.

@@ -25,6 +25,121 @@ describe("isValidConfigurationFile", () => {
     expect(isValidConfigurationFile(validConfig)).toBe(true);
   });
 
+  test("should return false for local Ladybug configurations", () => {
+    const config = {
+      id: createNewConfigurationId(),
+      displayLabel: createRandomName("Config"),
+      connection: {
+        url: "http://localhost/ladybug",
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-wasm-local-file",
+        ladybug: {
+          runtimeId: "runtime-1",
+          fileName: "graph.lbug",
+          fileSize: 1024,
+          lastModified: 1234,
+        },
+      },
+      schema: {
+        totalVertices: 0,
+        vertices: [],
+        totalEdges: 0,
+        edges: [],
+      },
+    };
+
+    expect(isValidConfigurationFile(config)).toBe(false);
+  });
+
+  test("should return true for remote Ladybug configurations with databaseName", () => {
+    const config = {
+      id: createNewConfigurationId(),
+      displayLabel: createRandomName("Config"),
+      connection: {
+        url: createRandomUrlString(),
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-remote",
+        ladybug: {
+          databaseName: "remote-db",
+        },
+      },
+      schema: {
+        totalVertices: 0,
+        vertices: [],
+        totalEdges: 0,
+        edges: [],
+      },
+    };
+
+    expect(isValidConfigurationFile(config)).toBe(true);
+  });
+
+  test("should return true for exported remote Ladybug configurations with proxy route", () => {
+    const config = {
+      id: createNewConfigurationId(),
+      displayLabel: createRandomName("Config"),
+      connection: {
+        url: "/ladybug/remote-db",
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-remote",
+        ladybug: {
+          databaseName: "remote-db",
+        },
+      },
+      schema: {
+        totalVertices: 0,
+        vertices: [],
+        totalEdges: 0,
+        edges: [],
+      },
+    };
+
+    expect(isValidConfigurationFile(config)).toBe(true);
+  });
+
+  test("should return false for remote Ladybug configurations with arbitrary relative URLs", () => {
+    const config = {
+      id: createNewConfigurationId(),
+      displayLabel: createRandomName("Config"),
+      connection: {
+        url: "/not-ladybug/remote-db",
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-remote",
+        ladybug: {
+          databaseName: "remote-db",
+        },
+      },
+      schema: {
+        totalVertices: 0,
+        vertices: [],
+        totalEdges: 0,
+        edges: [],
+      },
+    };
+
+    expect(isValidConfigurationFile(config)).toBe(false);
+  });
+
+  test("should return false for arbitrary relative URLs on normal remote configurations", () => {
+    const config = {
+      id: createNewConfigurationId(),
+      displayLabel: createRandomName("Config"),
+      connection: {
+        url: "/ladybug/remote-db",
+        queryEngine: "openCypher" as const,
+        backend: "remote",
+      },
+      schema: {
+        totalVertices: 0,
+        vertices: [],
+        totalEdges: 0,
+        edges: [],
+      },
+    };
+
+    expect(isValidConfigurationFile(config)).toBe(false);
+  });
+
   test("should return false when id is missing", () => {
     const config = {
       connection: {

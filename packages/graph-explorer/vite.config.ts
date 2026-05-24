@@ -1,6 +1,9 @@
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { createReadStream, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { loadEnv, type PluginOption } from "vite";
 import { coverageConfigDefaults, defineConfig } from "vitest/config";
 
@@ -91,7 +94,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Forward API requests to the Express proxy server in dev mode so
         // the browser stays on the same origin and CORS is not needed.
-        "^/(defaultConnection|gremlin|logger|openCypher|pg|rdf|sparql|status|summary)(/|$)":
+        "^/(defaultConnection|gremlin|ladybug|logger|openCypher|pg|rdf|sparql|status|summary)(/|$)":
           {
             target: expressServerUrl,
             changeOrigin: true,

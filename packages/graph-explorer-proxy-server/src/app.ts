@@ -11,6 +11,8 @@ import path from "path";
 import { pipeline } from "stream";
 import { z } from "zod";
 
+import type { LadybugProxyManager } from "./ladybug.ts";
+
 import { errorHandlingMiddleware } from "./error-handler.ts";
 import { RequestValidationError } from "./errors.ts";
 import { type AppLogger, requestLoggingMiddleware } from "./logging.ts";
@@ -82,6 +84,7 @@ interface CreateAppOptions {
   staticFilesPath: string;
   version?: string;
   corsOrigin?: string[];
+  ladybug?: LadybugProxyManager;
 }
 
 export function createApp({
@@ -90,6 +93,7 @@ export function createApp({
   staticFilesPath,
   version,
   corsOrigin,
+  ladybug,
 }: CreateAppOptions): express.Express {
   const app = express();
 
@@ -498,6 +502,33 @@ export function createApp({
       region,
       serviceType,
     );
+  });
+
+  // POST endpoint for native Ladybug openCypher queries.
+  app.post("/ladybug/:dbName/openCypher", async (req, res, next) => {
+    try {
+      if (!ladybug?.isConfigured) {
+        res.status(503).send({ error: "[Proxy]Ladybug: not configured" });
+        return;
+      }
+
+      const { dbName } = req.params;
+      if (!ladybug.hasDatabase(dbName)) {
+        res.status(404).send({ error: "[Proxy]Ladybug: database not found" });
+        return;
+      }
+
+      const queryString = req.body.query;
+      if (typeof queryString !== "string" || queryString.length === 0) {
+        res.status(400).send({ error: "[Proxy]Ladybug: query not provided" });
+        return;
+      }
+
+      const response = await ladybug.query(dbName, queryString);
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
   });
 
   // GET endpoint to retrieve PropertyGraph statistics summary for Neptune Analytics.

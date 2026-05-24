@@ -9,6 +9,7 @@ export const emptyExplorer: Explorer = {
     url: "",
     graphDbUrl: "",
     queryEngine: "gremlin",
+    backend: "remote",
     proxyConnection: false,
     awsAuthEnabled: false,
   },

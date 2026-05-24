@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import * as fileSaver from "file-saver";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConfigurationContextProps } from "@/core";
 import type { IriNamespace, RdfPrefix } from "@/utils/rdf";
@@ -15,6 +15,9 @@ vi.mock("file-saver", () => ({
 }));
 
 const saveAsMock = vi.mocked(fileSaver.saveAs);
+beforeEach(() => {
+  saveAsMock.mockClear();
+});
 
 describe("saveConfigurationToFile", () => {
   it("should save a minimal configuration to file", () => {
@@ -34,6 +37,58 @@ describe("saveConfigurationToFile", () => {
     expect(filename).toBe(`${config.displayLabel}.json`);
     expect(blob).toBeInstanceOf(Blob);
     expect((blob as Blob).type).toBe("application/json");
+  });
+
+  it("should block exporting local Ladybug configurations", () => {
+    const config: ConfigurationContextProps = {
+      ...createRandomRawConfiguration(),
+      connection: {
+        url: "http://localhost/ladybug",
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-wasm-local-file",
+        ladybug: {
+          runtimeId: "runtime-1",
+          fileName: "graph.lbug",
+          fileSize: 1024,
+          lastModified: 1234,
+        },
+      } as ConfigurationContextProps["connection"],
+      totalVertices: 0,
+      vertexTypes: [],
+      totalEdges: 0,
+      edgeTypes: [],
+    };
+
+    expect(() => saveConfigurationToFile(config)).toThrow(
+      "Local Ladybug configurations cannot be exported",
+    );
+    expect(saveAsMock).not.toHaveBeenCalled();
+  });
+
+  it("should export remote Ladybug configurations", async () => {
+    const config: ConfigurationContextProps = {
+      ...createRandomRawConfiguration(),
+      connection: {
+        url: "https://proxy.example.com",
+        queryEngine: "openCypher" as const,
+        backend: "ladybug-remote",
+        ladybug: {
+          databaseName: "remote-db",
+        },
+      } as ConfigurationContextProps["connection"],
+      totalVertices: 0,
+      vertexTypes: [],
+      totalEdges: 0,
+      edgeTypes: [],
+    };
+
+    saveConfigurationToFile(config);
+
+    expect(saveAsMock).toHaveBeenCalledTimes(1);
+    const [blob] = saveAsMock.mock.calls[0];
+    const parsed = JSON.parse(await (blob as Blob).text());
+    expect(parsed.connection.backend).toBe("ladybug-remote");
+    expect(parsed.connection.ladybug.databaseName).toBe("remote-db");
   });
 
   it("should use id as displayLabel if displayLabel is not provided", () => {

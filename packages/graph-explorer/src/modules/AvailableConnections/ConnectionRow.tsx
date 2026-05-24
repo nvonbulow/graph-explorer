@@ -12,6 +12,13 @@ import useResetState from "@/core/StateProvider/useResetState";
 import { useTranslations } from "@/hooks";
 import { logger } from "@/utils";
 
+type LadybugLocalConnection = NonNullable<RawConfiguration["connection"]> & {
+  backend?: string;
+  ladybug?: {
+    fileName?: unknown;
+  };
+};
+
 function ConnectionRow({
   connection,
   isSelected,
@@ -24,11 +31,7 @@ function ConnectionRow({
   const t = useTranslations();
   const setActiveConfig = useSetActiveConfigCallback(connection.id);
 
-  const dbUrl = connection.connection
-    ? connection.connection.proxyConnection
-      ? connection.connection.graphDbUrl
-      : connection.connection.url
-    : null;
+  const subtitleDetails = getConnectionSubtitleDetails(connection);
 
   const graphType = t(
     "query-language",
@@ -47,7 +50,9 @@ function ConnectionRow({
         </ListRowTitle>
         <ListRowSubtitle>
           <span className="">{graphType}</span>
-          {dbUrl ? <span> &bull; {dbUrl}</span> : null}
+          {subtitleDetails.map((detail, index) => (
+            <span key={`${index}:${detail}`}> &bull; {detail}</span>
+          ))}
         </ListRowSubtitle>
       </ListRowContent>
       <input
@@ -59,6 +64,27 @@ function ConnectionRow({
       />
     </div>
   );
+}
+
+function getConnectionSubtitleDetails(connection: RawConfiguration): string[] {
+  const connectionConfig = connection.connection;
+  if (!connectionConfig) {
+    return [];
+  }
+
+  const ladybug = connectionConfig as LadybugLocalConnection;
+  if (ladybug.backend === "ladybug-wasm-local-file") {
+    const details = ["Ladybug local file"];
+    if (typeof ladybug.ladybug?.fileName === "string") {
+      details.push(ladybug.ladybug.fileName);
+    }
+    return details;
+  }
+
+  const dbUrl = connectionConfig.proxyConnection
+    ? connectionConfig.graphDbUrl
+    : connectionConfig.url;
+  return dbUrl ? [dbUrl] : [];
 }
 
 function useSetActiveConfigCallback(configId: ConfigurationId) {
